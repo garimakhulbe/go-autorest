@@ -50,7 +50,7 @@ type RequestError struct {
 
 // Error returns a human-friendly error message from service error.
 func (e RequestError) Error() string {
-	return fmt.Sprintf("azure: Service returned an error. Code=%q Message=%q Status=%d",
+	return fmt.Sprintf("autorest/azure: Service returned an error. Code=%q Message=%q Status=%v",
 		e.ServiceError.Code, e.ServiceError.Message, e.StatusCode)
 }
 
@@ -149,14 +149,20 @@ func WithErrorUnlessStatusCode(codes ...int) autorest.RespondDecorator {
 				var e RequestError
 				defer resp.Body.Close()
 
+				// Copy and replace the Body in case it does not contain an error object.
+				// This will leave the Body available to the caller.
 				b, decodeErr := autorest.CopyAndDecode(autorest.EncodedAsJSON, resp.Body, &e)
-				resp.Body = ioutil.NopCloser(&b) // replace body with in-memory reader
-				if decodeErr != nil || e.ServiceError == nil {
-					return fmt.Errorf("autorest/azure: error response cannot be parsed: %q error: %v", b.String(), err)
+				resp.Body = ioutil.NopCloser(&b)
+				if decodeErr != nil {
+					fmt.Errorf("autorest/azure: error response cannot be parsed: %q error: %v", b.String(), decodeErr)
+				} else if e.ServiceError == nil {
+					e.ServiceError = &ServiceError{Code: "Unknown", Message: "Unknown service error"}
 				}
 
 				e.RequestID = ExtractRequestID(resp)
-				e.StatusCode = resp.StatusCode
+				if e.StatusCode == nil {
+					e.StatusCode = resp.StatusCode
+				}
 				err = &e
 			}
 			return err
