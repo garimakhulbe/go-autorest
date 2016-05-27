@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strconv"
 	"testing"
@@ -157,9 +156,10 @@ func ExampleWithHeader() {
 
 // Create a request whose Body is the JSON encoding of a structure
 func ExampleWithFormData() {
-	v := url.Values{}
-	v.Add("name", "Rob Pike")
-	v.Add("age", "42")
+	v := map[string]interface{}{
+		"name": "Rob Pike",
+		"age":  "42",
+	}
 
 	r, err := Prepare(&http.Request{},
 		WithFormData(v))
@@ -422,9 +422,10 @@ func TestPrepareWithNullRequest(t *testing.T) {
 }
 
 func TestWithFormDataSetsContentLength(t *testing.T) {
-	v := url.Values{}
-	v.Add("name", "Rob Pike")
-	v.Add("age", "42")
+	v := map[string]interface{}{
+		"name": "Rob Pike",
+		"age":  "42",
+	}
 
 	r, err := Prepare(&http.Request{},
 		WithFormData(v))

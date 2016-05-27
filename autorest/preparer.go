@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -183,14 +185,80 @@ func WithBaseURL(baseURL string) PrepareDecorator {
 
 // WithFormData returns a PrepareDecoratore that "URL encodes" (e.g., bar=baz&foo=quux) into the
 // http.Request body.
-func WithFormData(v url.Values) PrepareDecorator {
+func WithFormData(formDataParameters map[string]interface{}) PrepareDecorator {
 	return func(p Preparer) Preparer {
 		return PreparerFunc(func(r *http.Request) (*http.Request, error) {
 			r, err := p.Prepare(r)
 			if err == nil {
-				s := v.Encode()
+				form := url.Values{}
+				for key, value := range formDataParameters {
+					form.Add(key, ensureValueString(value))
+				}
+				s := form.Encode()
 				r.ContentLength = int64(len(s))
 				r.Body = ioutil.NopCloser(strings.NewReader(s))
+			}
+			return r, err
+		})
+	}
+}
+
+// WithFormDataParameters returns a PrepareDecoratore that "URL encodes" (e.g., bar=baz&foo=quux) form parameters
+// into the http.Request body.
+func WithMultiPartFormData(formDataParameters map[string]interface{}) PrepareDecorator {
+	return func(p Preparer) Preparer {
+		return PreparerFunc(func(r *http.Request) (*http.Request, error) {
+			r, err := p.Prepare(r)
+			if err == nil {
+				body := &bytes.Buffer{}
+				writer := multipart.NewWriter(body)
+
+				for key, value := range formDataParameters {
+					switch v := value.(type) {
+					case io.ReadCloser:
+						var fd io.Writer
+						if fd, err = writer.CreateFormFile(key, key); err != nil {
+							goto Return
+						}
+						if _, err = io.Copy(fd, v); err != nil {
+							goto Return
+						}
+					default:
+						if err = writer.WriteField(key, ensureValueString(v)); err != nil {
+							goto Return
+						}
+					}
+				}
+				contentType := writer.FormDataContentType()
+				if err = writer.Close(); err != nil {
+					goto Return
+				}
+				if r.Header == nil {
+					r.Header = make(http.Header)
+				}
+				r.Header.Set(http.CanonicalHeaderKey(headerContentType), contentType)
+				r.Body = ioutil.NopCloser(bytes.NewReader(body.Bytes()))
+				r.ContentLength = int64(body.Len())
+				goto Return
+			}
+		Return:
+			return r, err
+		})
+	}
+}
+
+// WithFile returns a PrepareDecorator that sends file in request body.
+func WithFile(f io.ReadCloser) PrepareDecorator {
+	return func(p Preparer) Preparer {
+		return PreparerFunc(func(r *http.Request) (*http.Request, error) {
+			r, err := p.Prepare(r)
+			if err == nil {
+				var b []byte
+				if b, err = ioutil.ReadAll(f); err != nil {
+					return r, err
+				}
+				r.Body = ioutil.NopCloser(bytes.NewReader(b))
+				r.ContentLength = int64(len(b))
 			}
 			return r, err
 		})

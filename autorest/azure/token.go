@@ -287,11 +287,16 @@ func (spt *ServicePrincipalToken) refreshInternal(resource string) error {
 		}
 	}
 
+	m := map[string]interface{}{}
+	for key, value := range v {
+		m[key] = value
+	}
+
 	req, _ := autorest.Prepare(&http.Request{},
 		autorest.AsPost(),
 		autorest.AsFormURLEncoded(),
 		autorest.WithBaseURL(spt.oauthConfig.TokenEndpoint.String()),
-		autorest.WithFormData(v))
+		autorest.WithFormData(m))
 
 	resp, err := autorest.SendWithSender(spt.sender, req)
 	if err != nil {

@@ -12,7 +12,6 @@ package azure
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/Azure/go-autorest/autorest"
@@ -85,7 +84,7 @@ func InitiateDeviceAuth(client *autorest.Client, oauthConfig OAuthConfig, client
 		autorest.AsPost(),
 		autorest.AsFormURLEncoded(),
 		autorest.WithBaseURL(oauthConfig.DeviceCodeEndpoint.String()),
-		autorest.WithFormData(url.Values{
+		autorest.WithFormData(map[string]interface{}{
 			"client_id": []string{clientID},
 			"resource":  []string{resource},
 		}),
@@ -121,7 +120,7 @@ func CheckForUserCompletion(client *autorest.Client, code *DeviceCode) (*Token, 
 		autorest.AsPost(),
 		autorest.AsFormURLEncoded(),
 		autorest.WithBaseURL(code.OAuthConfig.TokenEndpoint.String()),
-		autorest.WithFormData(url.Values{
+		autorest.WithFormData(map[string]interface{}{
 			"client_id":  []string{code.ClientID},
 			"code":       []string{*code.DeviceCode},
 			"grant_type": []string{OAuthGrantTypeDeviceCode},
